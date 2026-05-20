@@ -1,0 +1,49 @@
+spring:
+  application:
+    name: inventory-service
+  kafka:
+    bootstrap-servers: kafka:9092
+    consumer:
+      group-id: inventory-service-group
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
+      auto-offset-reset: earliest
+      enable-auto-commit: false
+      properties:
+        # ErrorHandlingDeserializer wraps JsonDeserializer: a bad payload is routed
+        # to the DLQ instead of poison-pilling the consumer.
+        spring.deserializer.value.delegate.class: org.springframework.kafka.support.serializer.JsonDeserializer
+        # use.type.headers=false → ignore the producer's __TypeId__ header and always
+        # deserialize into inventory-service's own OrderEvent type. This fully
+        # decouples inventory-service from order-api's class names.
+        spring.json.use.type.headers: false
+        spring.json.value.default.type: com.kafkaordersystem.inventoryservice.event.OrderEvent
+        spring.json.trusted.packages: "com.kafkaordersystem.inventoryservice.*"
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+    listener:
+      ack-mode: manual
+
+server:
+  port: 8081
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always
+
+logging:
+  pattern:
+    console: "%d{HH:mm:ss} [%X{correlationId}] %-5level %logger{36} - %msg%n"
+---
+spring:
+  config:
+    activate:
+      on-profile: local
+  kafka:
+    bootstrap-servers: localhost:9094
